@@ -1,0 +1,6 @@
+{
+        "engine_api": "https://api.hive-engine.com/",
+	"engine_id": "ssc-mainnet-hive",
+        "databaseConnector": "postgresql://user:password@localhost/engine",
+	"apiCacheDir": "/tmp/scotcache"
+}
