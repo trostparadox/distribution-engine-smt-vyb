@@ -22,6 +22,7 @@ CREATE TABLE "public"."accounts" (
     "symbol" character varying(20) NOT NULL,
     "last_post" timestamp DEFAULT '2019-01-01 00:00:00' NOT NULL,
     "last_root_post" timestamp DEFAULT '2019-01-01 00:00:00' NOT NULL,
+    "muted" boolean DEFAULT false NOT NULL,
     CONSTRAINT "accounts_name_token" PRIMARY KEY ("name", "symbol")
 ) WITH (oids = false);
 
@@ -92,6 +93,7 @@ CREATE TABLE "public"."posts" (
     "parent_author" character varying(20),
     "parent_permlink" character varying(256),
     "score_promoted" real DEFAULT '0' NOT NULL,
+    "muted" boolean DEFAULT false NOT NULL,
     CONSTRAINT "posts_authorperm_token" PRIMARY KEY ("authorperm", "token")
 ) WITH (oids = false);
 
