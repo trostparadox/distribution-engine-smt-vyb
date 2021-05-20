@@ -128,7 +128,7 @@ class CommentProcessorForEngine(object):
             self.postMetadataStorage.upsert({"authorperm": authorperm, "body": new_body, "json_metadata": json.dumps(json_metadata), "parent_author": ops["parent_author"], "parent_permlink": ops["parent_permlink"], "title": title, "tags": tags})
             for post in posts:
                 token = post["token"]
-                posts_list.append({"authorperm": authorperm, "token": token, "title": title[:256], "desc": desc, "tags": tags[:256], "parent_author": ops["parent_author"], "parent_permlink": ops["parent_permlink"]})
+                posts_list.append({"authorperm": authorperm, "token": token, "title": title[:256], "desc": desc, "tags": tags[:256], "parent_author": ops["parent_author"], "parent_permlink": ops["parent_permlink"], "main_post": main_post})
 
             if main_post:
                 self.accountsStorage.upsert({"name": post_author, "symbol": token, "last_root_post": timestamp})

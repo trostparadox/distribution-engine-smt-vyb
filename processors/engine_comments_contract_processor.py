@@ -49,7 +49,7 @@ class CommentsContractProcessor(CustomJsonProcessor):
                         token = event['data']['symbol']
                         cashout_window_days = token_config[token]["cashout_window_days"]
                         authorperm = f"@{contractPayload['author']}/{contractPayload['permlink']}"
-                        self.postTrx.upsert({"authorperm": authorperm, "author": contractPayload["author"], "created": timestamp, "token": token, "cashout_time": timestamp + timedelta(cashout_window_days)})
+                        self.postTrx.upsert({"authorperm": authorperm, "author": contractPayload["author"], "created": timestamp, "token": token, "cashout_time": timestamp + timedelta(cashout_window_days), "main_post": False})
                     elif event["event"] == "newVote" or event["event"] == "updateVote":
                         token = event['data']['symbol']
                         authorperm = f"@{contractPayload['author']}/{contractPayload['permlink']}"
@@ -74,6 +74,19 @@ class CommentsContractProcessor(CustomJsonProcessor):
                         except Exception as e:
                             print(e)
 
+                    elif event["event"] == "beneficiaryReward":
+                        token = event['data']['symbol']
+                        authorperm = event["data"]["authorperm"]
+                        if authorperm not in paid_out_posts:
+                            paid_out_posts[authorperm] = { "token": token, "authorperm": authorperm, "last_payout": timestamp, "total_payout_value": 0, "curator_payout_value": 0 }
+                        try:
+                            beneficiary_share = Decimal(event["data"]["quantity"])
+                            paid_out_posts[authorperm]["curator_payout_value"] += beneficiary_share
+                            paid_out_posts[authorperm]["total_payout_value"] += beneficiary_share
+                            self.accountHistoryTrx.add({"account": event["data"]["account"], "token": token, "timestamp": timestamp, "quantity": beneficiary_share, "type": "curation_reward", "authorperm": authorperm, "trx": op["transactionId"]})
+                        except Exception as e:
+                            print(e)
+
                     elif event["event"] == "authorReward":
                         #{"contract" :"comments","event":"authorReward","data":{"rewardPoolId":1,"authorperm":"@globalcurrencies/not-everything-that-is-dirty-is-coal-no-todo-lo-que-es-sucio-es-carbon","symbol":"PAL","account":"globalcurrencies","quantity":"2.571"}}
                         token = event['data']['symbol']
@@ -82,6 +95,9 @@ class CommentsContractProcessor(CustomJsonProcessor):
                             paid_out_posts[authorperm] = { "token": token, "authorperm": authorperm, "last_payout": timestamp, "total_payout_value": 0, "curator_payout_value": 0 }
                         author_share = Decimal(event["data"]["quantity"])
                         paid_out_posts[authorperm]["total_payout_value"] += author_share
+                        paid_out_posts[authorperm]["vote_rshares"]  = 0 
+                        paid_out_posts[authorperm]["score_hot"]  = 0 
+                        paid_out_posts[authorperm]["score_trend"]  = 0 
                         self.accountHistoryTrx.add({"account": event["data"]["account"], "token": token, "timestamp": timestamp, "quantity": author_share, "type": "author_reward", "authorperm": authorperm, "trx": op["transactionId"]})
                     elif event["event"] == "createRewardPool" or event["event"] == "updateRewardPool":
                         # const config = { "postRewardCurve": "power", "postRewardCurveParameter": "1.05", "curationRewardCurve": "power", "curationRewardCurveParameter": "0.5", "curationRewardPercentage": 50, "cashoutWindowDays": 7, "rewardPerBlock": "0.375", "voteRegenerationDays": 5, "downvoteRegenerationDays": 5, "stakedRewardPercentage": 50, "votePowerConsumption": 200, "downvotePowerConsumption": 2000, "tags": ["palnet"]};
@@ -96,5 +112,5 @@ class CommentsContractProcessor(CustomJsonProcessor):
                         print(event)
                         raise "Error"
             for paid_out_post in paid_out_posts.values():
-                self.postTrx.upsert({"token": paid_out_post["token"], "authorperm": paid_out_post["authorperm"], "last_payout": paid_out_post["last_payout"], "total_payout_value": paid_out_post["total_payout_value"], "curator_payout_value": paid_out_post["curator_payout_value"]})
+                self.postTrx.update({"token": paid_out_post["token"], "authorperm": paid_out_post["authorperm"], "last_payout": paid_out_post["last_payout"], "total_payout_value": paid_out_post["total_payout_value"], "curator_payout_value": paid_out_post["curator_payout_value"]})
 

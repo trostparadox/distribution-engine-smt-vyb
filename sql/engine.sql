@@ -23,6 +23,7 @@ CREATE TABLE "public"."accounts" (
     "last_post" timestamp DEFAULT '2019-01-01 00:00:00' NOT NULL,
     "last_root_post" timestamp DEFAULT '2019-01-01 00:00:00' NOT NULL,
     "muted" boolean DEFAULT false NOT NULL,
+    "last_follow_refresh_time" timestamp,
     CONSTRAINT "accounts_name_token" PRIMARY KEY ("name", "symbol")
 ) WITH (oids = false);
 

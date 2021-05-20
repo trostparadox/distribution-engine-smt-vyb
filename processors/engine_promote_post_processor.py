@@ -12,6 +12,7 @@ from engine.post_storage import PostsTrx
 from engine.vote_storage import VotesTrx
 from engine.utils import _score
 from processors.custom_json_processor import CustomJsonProcessor, extract_user, check_engine_op
+import json
 import re
 import time
 import traceback
@@ -33,11 +34,13 @@ class PromotePostProcessor(CustomJsonProcessor):
         """ Main process method.
         """
         token_config = self.token_metadata["config"]
+        print(json.dumps(contractPayload))
 
         if not check_engine_op(op):
             return
         if "symbol" not in contractPayload:
-            print(contractPayload)
+            print("No symbol field in contractPayload")
+            print(json.dumps(contractPayload))
             return
         if "quantity" not in contractPayload:
             print("No quantity field in contractPayload")
@@ -88,7 +91,7 @@ class PromotePostProcessor(CustomJsonProcessor):
 
         if promotion_success:
             promoted_amount = Decimal(quantity)
-            promoted = promoted + int_promoted_amount
+            promoted = promoted + promoted_amount
 
             sc_promoted = _score(promoted, _timestamp, 480000)
             self.postTrx.update({"authorperm": authorperm, "token": transfer_token, "promoted": promoted,

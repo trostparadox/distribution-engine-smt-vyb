@@ -29,6 +29,8 @@ from engine.follow_storage import FollowsDB
 from engine.reblog_storage import ReblogsDB
 from engine.version import version as engineversion
 from engine.utils import setup_logging, int_sqrt, int_pow, _score
+from beem import Hive
+from beem.account import Account
 from beem.utils import formatTimeString, resolve_authorperm, construct_authorperm, addTzInfo
 from steemengine.api import Api
 from steemengine.tokenobject import Token
@@ -56,6 +58,9 @@ databaseConnector = config_data["databaseConnector"]
 
 engine_api = Api(url=config_data["engine_api"])
 
+node_list = ["https://api.hivekings.com", "https://api.hive.blog", "https://api.openhive.network"]
+hived = Hive(node=node_list, num_retries=5, call_num_retries=3, timeout=15, nobroadcast=True, bundle=True)
+
 @app.route('/')
 def main():
     return ""
@@ -72,6 +77,8 @@ def state():
            'last_streamed_timestamp': formatTimeString(hived_conf['last_streamed_timestamp']),
            'time_delay_seconds': time_delay_seconds,
            'engine_time_delay_seconds': engine_time_delay_seconds}
+    db.executable.close()
+    db = None
     return jsonify(data)
 
 @cache.cached(timeout=60, query_string=True)
@@ -84,36 +91,39 @@ def token():
     
     db = dataset.connect(databaseConnector, ensure_schema=False)
     tokenConfigStorage = TokenConfigDB(db)
-    if token:
-        token_config = tokenConfigStorage.get(token)
-        token_data_object = {}
-        # fetch from contract
-        reward_pool_id = token_config["reward_pool_id"]
-        reward_pool = engine_api.find_one("comments", "rewardPools", { "_id": int(reward_pool_id)})
-        if len(reward_pool) > 0:
-            token_data_object['pending_rshares'] = Decimal(reward_pool[0]['pendingClaims'])
-            token_data_object['reward_pool'] = Decimal(reward_pool[0]['rewardPool'])
+    try:
+      if token:
+          token_config = tokenConfigStorage.get(token)
+          token_data_object = {}
+          # fetch from contract
+          reward_pool_id = token_config["reward_pool_id"]
+          reward_pool = engine_api.find_one("comments", "rewardPools", { "_id": int(reward_pool_id)})
+          if len(reward_pool) > 0:
+              token_data_object['pending_rshares'] = Decimal(reward_pool[0]['pendingClaims'])
+              token_data_object['reward_pool'] = Decimal(reward_pool[0]['rewardPool'])
 
-        tokenApi = Token(symbol=token, api=engine_api)
-        if tokenApi:
-            token_data_object['precision'] = tokenApi['precision']
-        return jsonify(token_data_object)
-    else:
-        token_config = tokenConfigStorage.get_all()
-        token_data = {}
-        for token in token_config:
-            reward_pool_id = token_config[token]["reward_pool_id"]
-            reward_pool = engine_api.find_one("comments", "rewardPools", { "_id": int(reward_pool_id)})
-            token_data_object = { "token": token }
-            if len(reward_pool) > 0:
-                token_data_object['pending_rshares'] = Decimal(reward_pool[0]['pendingClaims'])
-                token_data_object['reward_pool'] = Decimal(reward_pool[0]['rewardPool'])
-            tokenApi = Token(symbol=token, api=engine_api)
-            if tokenApi:
-                token_data_object['precision'] = tokenApi['precision']
-            token_data[token] = token_data_object
-        return jsonify(token_data)
-
+          tokenApi = Token(symbol=token, api=engine_api)
+          if tokenApi:
+              token_data_object['precision'] = tokenApi['precision']
+          return jsonify(token_data_object)
+      else:
+          token_config = tokenConfigStorage.get_all()
+          token_data = {}
+          for token in token_config:
+              reward_pool_id = token_config[token]["reward_pool_id"]
+              reward_pool = engine_api.find_one("comments", "rewardPools", { "_id": int(reward_pool_id)})
+              token_data_object = { "token": token }
+              if len(reward_pool) > 0:
+                  token_data_object['pending_rshares'] = Decimal(reward_pool[0]['pendingClaims'])
+                  token_data_object['reward_pool'] = Decimal(reward_pool[0]['rewardPool'])
+              tokenApi = Token(symbol=token, api=engine_api)
+              if tokenApi:
+                  token_data_object['precision'] = tokenApi['precision']
+              token_data[token] = token_data_object
+          return jsonify(token_data)
+    finally:
+        db.executable.close()
+        db = None
 
 
 
@@ -125,16 +135,20 @@ def config():
     token = request.args.get('token', None)
 
     db = dataset.connect(databaseConnector, ensure_schema=False)
-    tokenConfigStorage = TokenConfigDB(db)
+    try:
+      tokenConfigStorage = TokenConfigDB(db)
 
-    if token is None:
-        token_config_list = tokenConfigStorage.get_all_list()
-        return jsonify(token_config_list)
-    else:
-        token_config = tokenConfigStorage.get(token)
-        if token_config:
-            return jsonify(token_config)
-        return jsonify({})
+      if token is None:
+          token_config_list = tokenConfigStorage.get_all_list()
+          return jsonify(token_config_list)
+      else:
+          token_config = tokenConfigStorage.get(token)
+          if token_config:
+              return jsonify(token_config)
+          return jsonify({})
+    finally:
+        db.executable.close()
+        db = None
 
 @app.route('/get_account_history', methods=['GET'])
 def get_account_history():
@@ -160,34 +174,38 @@ def get_account_history():
         return jsonify([])       
     
     db = dataset.connect(databaseConnector, ensure_schema=False)
+    try:
 
-    accountHistoryTrx = AccountHistoryTrx(db)
-    if hist_type is None and token is None:
-        history = accountHistoryTrx.get_history(account, limit, offset)
-    elif hist_type is None and token is not None:
-        history = accountHistoryTrx.get_token_history(token, account, limit, offset)
-    elif hist_type is not None and token is None:
-        history = accountHistoryTrx.get_history(account, limit, offset, hist_type=hist_type)
-    elif hist_type is not None and token is not None:
-        history = accountHistoryTrx.get_token_history(token, account, limit, offset, hist_type=hist_type)    
-        
-        
-    ret = []
-    for h in history:
-        h2 = {}
-        h2["type"] = h["type"]
-        if h["timestamp"] is not None:
-            h2["timestamp"] = formatTimeString(h["timestamp"])
-        if h["authorperm"] is not None:
-            author, permlink = resolve_authorperm(h["authorperm"])
-            h2["author"] = author
-            h2["permlink"] = permlink
-        h2["account"] = h["account"]
-        h2["token"] = h["token"]
-        h2["quantity"] = h["quantity"]
-        h2["trx"] = h["trx"]
-        ret.append(h2)
-    return jsonify(ret)
+        accountHistoryTrx = AccountHistoryTrx(db)
+        if hist_type is None and token is None:
+            history = accountHistoryTrx.get_history(account, limit, offset)
+        elif hist_type is None and token is not None:
+            history = accountHistoryTrx.get_token_history(token, account, limit, offset)
+        elif hist_type is not None and token is None:
+            history = accountHistoryTrx.get_history(account, limit, offset, hist_type=hist_type)
+        elif hist_type is not None and token is not None:
+            history = accountHistoryTrx.get_token_history(token, account, limit, offset, hist_type=hist_type)    
+            
+            
+        ret = []
+        for h in history:
+            h2 = {}
+            h2["type"] = h["type"]
+            if h["timestamp"] is not None:
+                h2["timestamp"] = formatTimeString(h["timestamp"])
+            if h["authorperm"] is not None:
+                author, permlink = resolve_authorperm(h["authorperm"])
+                h2["author"] = author
+                h2["permlink"] = permlink
+            h2["account"] = h["account"]
+            h2["token"] = h["token"]
+            h2["quantity"] = h["quantity"]
+            h2["trx"] = h["trx"]
+            ret.append(h2)
+        return jsonify(ret)
+    finally:
+        db.executable.close()
+        db = None
         
 
 @app.route('/@<account>', methods=['GET'])
@@ -197,19 +215,23 @@ def account(account):
     """
     token = request.args.get('token', None)
     db = dataset.connect(databaseConnector, ensure_schema=False)
+    try:
 
-    accountsStorage = AccountsDB(db)
+        accountsStorage = AccountsDB(db)
 
-    acc_data = accountsStorage.get_all_token(account)
-    
-    response = {}    
-    for t in acc_data:
-        if token is not None and token != t:
-            continue
+        acc_data = accountsStorage.get_all_token(account)
+        
+        response = {}    
+        for t in acc_data:
+            if token is not None and token != t:
+                continue
 
-        acc_data[t]["name"] = account
-        response[t] = acc_data[t]
-    return jsonify(response)
+            acc_data[t]["name"] = account
+            response[t] = acc_data[t]
+        return jsonify(response)
+    finally:
+        db.executable.close()
+        db = None
 
 @app.route('/@<account>/<permlink>', methods=['GET'])
 def authorperm(account, permlink):
@@ -218,33 +240,37 @@ def authorperm(account, permlink):
     """
     token = request.args.get('token', None)
     db = dataset.connect(databaseConnector, ensure_schema=False)
-    authorperm = construct_authorperm(account, permlink)
-    postTrx = PostsTrx(db)
-    votesTrx = VotesTrx(db)
-    post_list = postTrx.get_authorperm_posts(authorperm)
-    
-    posts = {}
-    for post in post_list:
-        if token is not None and token != post["token"]:
-            continue
+    try:
+        authorperm = construct_authorperm(account, permlink)
+        postTrx = PostsTrx(db)
+        votesTrx = VotesTrx(db)
+        post_list = postTrx.get_authorperm_posts(authorperm)
         
-        post["cashout_time"] = formatTimeString(post["cashout_time"])
-        post["created"] = formatTimeString(post["created"])
-        post["last_payout"] = formatTimeString(post["last_payout"])
-        post["title"] = post["title"]
-        post["vote_rshares"] = Decimal(post["vote_rshares"])
-        
-        post["authorperm"] = authorperm
-        post["author"] = account
+        posts = {}
+        for post in post_list:
+            if token is not None and token != post["token"]:
+                continue
+            
+            post["cashout_time"] = formatTimeString(post["cashout_time"])
+            post["created"] = formatTimeString(post["created"])
+            post["last_payout"] = formatTimeString(post["last_payout"])
+            post["title"] = post["title"]
+            post["vote_rshares"] = Decimal(post["vote_rshares"])
+            
+            post["authorperm"] = authorperm
+            post["author"] = account
 
-        vote_list = votesTrx.get_token_vote(authorperm, post["token"])
-        for vote in vote_list:
-            vote["timestamp"] = formatTimeString(vote["timestamp"])
-            vote["percent"] = int(vote["percent"])
-        post["active_votes"] = vote_list
-        posts[post["token"]] = post
-        
-    return jsonify(posts)
+            vote_list = votesTrx.get_token_vote(authorperm, post["token"])
+            for vote in vote_list:
+                vote["timestamp"] = formatTimeString(vote["timestamp"])
+                vote["percent"] = int(vote["percent"])
+            post["active_votes"] = vote_list
+            posts[post["token"]] = post
+            
+        return jsonify(posts)
+    finally:
+        db.executable.close()
+        db = None
 
 
 @app.route('/get_staked_accounts', methods=['GET'])
@@ -269,7 +295,7 @@ def get_staked_accounts():
           break
     return jsonify(res)
 
-def format_feed_data(db, token, posts, start_author, start_permlink, limit):
+def format_feed_data(db, token, posts, start_author, start_permlink, limit, fetch_votes=True):
     """
     Attach vote data and massage post output.
     """
@@ -291,11 +317,20 @@ def format_feed_data(db, token, posts, start_author, start_permlink, limit):
         post["created"] = formatTimeString(post["created"])
         post["last_payout"] = formatTimeString(post["last_payout"])
         post["vote_rshares"] = Decimal(post["vote_rshares"])
-        vote_list = votesTrx.get_token_vote(post["authorperm"], token)
-        for vote in vote_list:
-            vote["timestamp"] = formatTimeString(vote["timestamp"])
-            vote["percent"] = int(vote["percent"])
-            vote["authorperm"] = ""
+        if fetch_votes:
+            if not fetch_votes or fetch_votes == True:
+                vote_list = votesTrx.get_token_vote(post["authorperm"], token)
+            else:
+                voter_vote = votesTrx.get(post["authorperm"], fetch_votes, token)
+                vote_list = [voter_vote] if voter_vote else []
+
+            for vote in vote_list:
+                vote["timestamp"] = formatTimeString(vote["timestamp"])
+                vote["authorperm"] = ""
+                if vote["timestamp"] > post["cashout_time"]:
+                    continue
+        else:
+            vote_list = []
         post["active_votes"] = vote_list
 
         if "reblogged_by" in post and isinstance(post["reblogged_by"], str):
@@ -331,6 +366,8 @@ def get_feed():
     start_author = request.args.get('start_author', None)
     start_permlink = request.args.get('start_permlink', None)
     include_reblogs = request.args.get('include_reblogs', True)
+    fetch_votes = not request.args.get('no_votes', False)
+    fetch_votes = request.args.get('voter', fetch_votes)
 
     try:
         limit = int(limit)
@@ -346,25 +383,29 @@ def get_feed():
         return jsonify([])
     
     db = dataset.connect(databaseConnector, ensure_schema=False)
-    postTrx = PostsTrx(db)
-    reblogsDb = ReblogsDB(db)
-    followsDb = FollowsDB(db)
+    try:
+        postTrx = PostsTrx(db)
+        reblogsDb = ReblogsDB(db)
+        followsDb = FollowsDB(db)
 
-    last_timestamp = None
-    if start_author is not None and start_permlink is not None:
-        authorperm = construct_authorperm(start_author, start_permlink)
+        last_timestamp = None
+        if start_author is not None and start_permlink is not None:
+            authorperm = construct_authorperm(start_author, start_permlink)
 
-        post = postTrx.get_token_post(token, authorperm)
-        if post is not None:
-            last_timestamp = post['created']
-            if include_reblogs:
-                reblog_time = reblogsDb.get_earliest_authorperm_reblog_timestamp(account, authorperm, use_follows=True)
-                if reblog_time is not None and reblog_time > last_timestamp:
-                    last_timestamp = reblog_time
+            post = postTrx.get_token_post(token, authorperm)
+            if post is not None:
+                last_timestamp = post['created']
+                if include_reblogs:
+                    reblog_time = reblogsDb.get_earliest_authorperm_reblog_timestamp(account, authorperm, use_follows=True)
+                    if reblog_time is not None and reblog_time > last_timestamp:
+                        last_timestamp = reblog_time
 
 
-    created_posts = postTrx.get_feed_discussions(token, account, last_timestamp=last_timestamp, include_reblogs=include_reblogs)
-    return format_feed_data(db, token, created_posts, start_author, start_permlink, limit)
+        created_posts = postTrx.get_feed_discussions(token, [account], last_timestamp=last_timestamp, include_reblogs=include_reblogs)
+        return format_feed_data(db, token, created_posts, start_author, start_permlink, limit, fetch_votes)
+    finally:
+        db.executable.close()
+        db = None
 
 
 @app.route('/get_discussions_by_created', methods=['GET'])
@@ -374,6 +415,8 @@ def get_discussions_by_created():
     tag = request.args.get('tag', None)
     start_author = request.args.get('start_author', None)
     start_permlink = request.args.get('start_permlink', None)
+    fetch_votes = not request.args.get('no_votes', False)
+    fetch_votes = request.args.get('voter', fetch_votes)
     try:
         limit = int(limit)
     except:
@@ -385,17 +428,21 @@ def get_discussions_by_created():
     if start_author is None and start_permlink is not None:
         return jsonify([])    
     db = dataset.connect(databaseConnector, ensure_schema=False)
-    postTrx = PostsTrx(db)
+    try:
+        postTrx = PostsTrx(db)
 
-    last_timestamp = None
-    if start_author is not None and start_permlink is not None:
-        authorperm = construct_authorperm(start_author, start_permlink)
-        post = postTrx.get_token_post(token, authorperm)
-        if post is not None:
-            last_timestamp = post['created']
+        last_timestamp = None
+        if start_author is not None and start_permlink is not None:
+            authorperm = construct_authorperm(start_author, start_permlink)
+            post = postTrx.get_token_post(token, authorperm)
+            if post is not None:
+                last_timestamp = post['created']
 
-    created_posts = postTrx.get_discussions_by_created(token, tag=tag, limit=limit, last_timestamp=last_timestamp)
-    return format_feed_data(db, token, created_posts, start_author, start_permlink, limit)
+        created_posts = postTrx.get_discussions_by_created(token, tag=tag, limit=limit, last_timestamp=last_timestamp)
+        return format_feed_data(db, token, created_posts, start_author, start_permlink, limit, fetch_votes)
+    finally:
+        db.executable.close()
+        db = None
 
 
 def get_discussions_by_score(request, score_key, main_post=True):
@@ -404,6 +451,8 @@ def get_discussions_by_score(request, score_key, main_post=True):
     tag = request.args.get('tag', None)
     start_author = request.args.get('start_author', None)
     start_permlink = request.args.get('start_permlink', None)
+    fetch_votes = not request.args.get('no_votes', False)
+    fetch_votes = request.args.get('voter', fetch_votes)
     try:
         limit = int(limit)
     except:
@@ -416,14 +465,18 @@ def get_discussions_by_score(request, score_key, main_post=True):
         return jsonify([])
 
     db = dataset.connect(databaseConnector, ensure_schema=False)
-    postTrx = PostsTrx(db)
+    try:
+        postTrx = PostsTrx(db)
 
-    last_authorperm = None
-    if start_author is not None and start_permlink is not None:
-        last_authorperm = construct_authorperm(start_author, start_permlink)
+        last_authorperm = None
+        if start_author is not None and start_permlink is not None:
+            last_authorperm = construct_authorperm(start_author, start_permlink)
 
-    created_posts = postTrx.get_discussions_by_score(score_key, token, tag=tag, limit=limit, last_authorperm=last_authorperm, main_post=main_post)
-    return format_feed_data(db, token, created_posts, start_author, start_permlink, limit)
+        created_posts = postTrx.get_discussions_by_score(score_key, token, tag=tag, limit=limit, last_authorperm=last_authorperm, main_post=main_post)
+        return format_feed_data(db, token, created_posts, start_author, start_permlink, limit, fetch_votes)
+    finally:
+        db.executable.close()
+        db = None
  
 
 @app.route('/get_discussions_by_trending', methods=['GET'])
@@ -460,6 +513,8 @@ def get_discussions_by_blog():
     include_reblogs = request.args.get('include_reblogs', False)
     start_author = request.args.get('start_author', None)
     start_permlink = request.args.get('start_permlink', None)
+    fetch_votes = not request.args.get('no_votes', False)
+    fetch_votes = request.args.get('voter', fetch_votes)
 
     try:
         limit = int(limit)
@@ -475,23 +530,27 @@ def get_discussions_by_blog():
         return jsonify([])
 
     db = dataset.connect(databaseConnector, ensure_schema=False)
-    postTrx = PostsTrx(db)
-    reblogsDb = ReblogsDB(db)
+    try:
+        postTrx = PostsTrx(db)
+        reblogsDb = ReblogsDB(db)
 
-    last_timestamp = None
-    if start_author is not None and start_permlink is not None:
-        authorperm = construct_authorperm(start_author, start_permlink)
-        if account == start_author:
-            post = postTrx.get_token_post(token, authorperm)
-            if post is not None:
-                last_timestamp = post['created']
-        else:
-            reblog_time = reblogsDb.get_earliest_authorperm_reblog_timestamp(account, authorperm)
-            if reblog_time is not None:
-                last_timestamp = reblog_time
+        last_timestamp = None
+        if start_author is not None and start_permlink is not None:
+            authorperm = construct_authorperm(start_author, start_permlink)
+            if account == start_author:
+                post = postTrx.get_token_post(token, authorperm)
+                if post is not None:
+                    last_timestamp = post['created']
+            else:
+                reblog_time = reblogsDb.get_earliest_authorperm_reblog_timestamp(account, authorperm)
+                if reblog_time is not None:
+                    last_timestamp = reblog_time
 
-    created_posts = postTrx.get_discussions_by_blog(token, account, include_reblogs=include_reblogs, last_timestamp=last_timestamp)
-    return format_feed_data(db, token, created_posts, start_author, start_permlink, limit)
+        created_posts = postTrx.get_discussions_by_blog(token, [account], include_reblogs=include_reblogs, last_timestamp=last_timestamp)
+        return format_feed_data(db, token, created_posts, start_author, start_permlink, limit, fetch_votes)
+    finally:
+        db.executable.close()
+        db = None
 
 @app.route('/get_discussions_by_comments', methods=['GET'])
 def get_discussions_by_comments():
@@ -503,6 +562,8 @@ def get_discussions_by_comments():
     account = request.args.get('tag', None)
     start_author = request.args.get('start_author', None)
     start_permlink = request.args.get('start_permlink', None)
+    fetch_votes = not request.args.get('no_votes', False)
+    fetch_votes = request.args.get('voter', fetch_votes)
 
     try:
         limit = int(limit)
@@ -518,19 +579,21 @@ def get_discussions_by_comments():
         return jsonify([])
 
     db = dataset.connect(databaseConnector, ensure_schema=False)
-    postTrx = PostsTrx(db)
+    try:
+        postTrx = PostsTrx(db)
 
-    last_timestamp = None
-    if start_author is not None and start_permlink is not None:
-        authorperm = construct_authorperm(start_author, start_permlink)
-        post = postTrx.get_token_post(token, authorperm)
-        if post is not None:
-            last_timestamp = post['created']
-        if post is None:
-            post = postTrx.get_token_post(token, f"h{authorperm}")
+        last_timestamp = None
+        if start_author is not None and start_permlink is not None:
+            authorperm = construct_authorperm(start_author, start_permlink)
+            post = postTrx.get_token_post(token, authorperm)
+            if post is not None:
+                last_timestamp = post['created']
 
-    comment_posts = postTrx.get_discussions_by_comments(token, account, last_timestamp=last_timestamp)
-    return format_feed_data(db, token, comment_posts, start_author, start_permlink, limit)
+        comment_posts = postTrx.get_discussions_by_comments(token, [account], last_timestamp=last_timestamp)
+        return format_feed_data(db, token, comment_posts, start_author, start_permlink, limit, fetch_votes)
+    finally:
+        db.executable.close()
+        db = None
 
 @app.route('/get_discussions_by_replies', methods=['GET'])
 def get_discussions_by_replies():
@@ -542,6 +605,8 @@ def get_discussions_by_replies():
     account = request.args.get('tag', None)
     start_author = request.args.get('start_author', None)
     start_permlink = request.args.get('start_permlink', None)
+    fetch_votes = not request.args.get('no_votes', False)
+    fetch_votes = request.args.get('voter', fetch_votes)
 
     try:
         limit = int(limit)
@@ -557,17 +622,21 @@ def get_discussions_by_replies():
         return jsonify([])
 
     db = dataset.connect(databaseConnector, ensure_schema=False)
-    postTrx = PostsTrx(db)
+    try:
+        postTrx = PostsTrx(db)
 
-    last_timestamp = None
-    if start_author is not None and start_permlink is not None:
-        authorperm = construct_authorperm(start_author, start_permlink)
-        post = postTrx.get_token_post(token, authorperm)
-        if post is not None:
-            last_timestamp = post['created']
+        last_timestamp = None
+        if start_author is not None and start_permlink is not None:
+            authorperm = construct_authorperm(start_author, start_permlink)
+            post = postTrx.get_token_post(token, authorperm)
+            if post is not None:
+                last_timestamp = post['created']
 
-    reply_posts = postTrx.get_discussions_by_replies(token, account, last_timestamp=last_timestamp)
-    return format_feed_data(db, token, reply_posts, start_author, start_permlink, limit)
+        reply_posts = postTrx.get_discussions_by_replies(token, [account], last_timestamp=last_timestamp)
+        return format_feed_data(db, token, reply_posts, start_author, start_permlink, limit, fetch_votes)
+    finally:
+        db.executable.close()
+        db = None
 
 
 @app.route('/get_trending_tags', methods=['GET'])
@@ -577,7 +646,7 @@ def get_trending_tags():
     Get trending tags.
     """
     token = request.args.get('token', None)
-    limit = request.args.get('limit', 20)
+    limit = request.args.get('limit', 40)
 
     try:
         limit = int(limit)
@@ -587,10 +656,34 @@ def get_trending_tags():
         return jsonify([])
 
     db = dataset.connect(databaseConnector, ensure_schema=False)
-    postTrx = PostsTrx(db)
+    try:
+        postTrx = PostsTrx(db)
 
-    tags = postTrx.get_trending_tags(token)
-    return jsonify(list(tags))
+        tags = postTrx.get_trending_tags(token)
+        return jsonify(list(tags))
+    finally:
+        db.executable.close()
+        db = None
+
+
+def refresh_follows(db, account):
+    accountsStorage = AccountsDB(db)
+    followsDb = FollowsDB(db)
+    tokenConfigStorage = TokenConfigDB(db)
+    followRefreshTime = accountsStorage.get_follow_refresh_time(account)
+
+    if followRefreshTime is None:
+        try:
+            acc = Account(account, steem_instance=hived)
+        except:
+            return
+        following = acc.get_following()
+
+        followsDb.refresh_follows(account, following)
+
+        all_tokens = tokenConfigStorage.get_all_list()
+        if len(all_tokens) > 0:
+            accountsStorage.upsert({"name": account, "symbol": all_tokens[0]["token"], "last_follow_refresh_time": datetime.now()})
 
 
 @app.route('/get_following', methods=['GET'])
@@ -613,10 +706,14 @@ def get_following():
         return jsonify([])
 
     db = dataset.connect(databaseConnector, ensure_schema=False)
-    followsStorage = FollowsDB(db)
+    try:
+        followsStorage = FollowsDB(db)
 
-    result = [{"follower": x["follower"], "following": x["following"]} for x in followsStorage.get_following(follower, following, status, start=start, limit=limit, hive=hive)]
-    return jsonify(result)
+        result = [{"follower": x["follower"], "following": x["following"]} for x in followsStorage.get_following(follower, following, status, start=start, limit=limit, hive=hive)]
+        return jsonify(result)
+    finally:
+        db.executable.close()
+        db = None
 
 
 @app.route('/get_follow_count', methods=['GET'])
@@ -625,12 +722,16 @@ def get_follow_count():
     Get follow count.
     """
     account = request.args.get('account', None)
-    hive = request.args.get('hive', False)
 
     db = dataset.connect(databaseConnector, ensure_schema=False)
-    followsStorage = FollowsDB(db)
+    try:
+        refresh_follows(db, account)
+        followsStorage = FollowsDB(db)
 
-    return jsonify(followsStorage.get_follow_count(account, hive=hive))
+        return jsonify(followsStorage.get_follow_count(account))
+    finally:
+        db.executable.close()
+        db = None
 
 
 if __name__ == '__main__':

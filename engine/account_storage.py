@@ -78,3 +78,8 @@ class AccountsDB(object):
         """
         table = self.db[self.__tablename__]
         table.update(data, ['name', 'symbol'])
+
+    def get_follow_refresh_time(self, account):
+        results = self.db.query("SELECT MAX(last_follow_refresh_time) t FROM accounts WHERE name = :account", account=account)
+        result = next(results, None)
+        return result["t"] if result is not None else None

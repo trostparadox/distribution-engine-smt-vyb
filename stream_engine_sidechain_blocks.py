@@ -20,6 +20,7 @@ import dataset
 import random
 import logging
 import logging.config
+import traceback
 from datetime import date, datetime, timedelta
 from dateutil.parser import parse
 from decimal import Decimal
@@ -111,27 +112,32 @@ if __name__ == "__main__":
 
                 contract_action = op["action"]
                 contractPayload = op["payload"]
-                contractPayload = json.loads(contractPayload)
+                try:
+                    contractPayload = json.loads(contractPayload)
 
-                if op["contract"] == "comments":
-                    comments_processor.process(op, contractPayload, timestamp)
-                    continue
-                elif op["contract"] == "tokens":
-                    if "memo" not in contractPayload or contractPayload["memo"] is None:
-                        print("No memo field in contractPayload")
+                    if op["contract"] == "comments":
+                        comments_processor.process(op, contractPayload, timestamp)
                         continue
-                    memo = contractPayload["memo"]
-                    if not isinstance(memo, str) or len(memo) < 3:
-                        continue
-                    if "symbol" not in contractPayload:
-                        continue
-                    transfer_token = contractPayload["symbol"]
-                    if "to" not in contractPayload:
-                        continue
-                    transfer_token_config = token_metadata["config"][transfer_token]
-                    if transfer_token_config is not None and memo.find("@") > -1:
-                        if contractPayload["to"] == transfer_token_config["promoted_post_account"]:
-                            promote_post_processor.process(op, contractPayload)
+                    elif op["contract"] == "tokens" and contract_action == "transfer":
+                        if "memo" not in contractPayload or contractPayload["memo"] is None:
+                            print("No memo field in contractPayload")
+                            continue
+                        memo = contractPayload["memo"]
+                        if not isinstance(memo, str) or len(memo) < 3:
+                            continue
+                        if "symbol" not in contractPayload:
+                            continue
+                        transfer_token = contractPayload["symbol"]
+                        if "to" not in contractPayload:
+                            continue
+                        if transfer_token not in token_metadata["config"]:
+                            continue
+                        transfer_token_config = token_metadata["config"][transfer_token]
+                        if transfer_token_config is not None and memo.find("@") > -1:
+                            if contractPayload["to"] == transfer_token_config["promoted_post_account"]:
+                                promote_post_processor.process(op, contractPayload)
+                except Exception as e:
+                    traceback.print_exc()
 
         confStorage.upsert_engine({"last_engine_streamed_block": current_block_num, "last_engine_streamed_timestamp": last_engine_streamed_timestamp})
         db.commit()
