@@ -90,7 +90,7 @@ class CommentProcessorForEngine(object):
                     elif t is not None and len(tags) > 0:
                         tags += "," + t
 
-
+        parent_authorperm = None
         if not main_post:
             parent_authorperm = f"{construct_authorperm(ops['parent_author'], ops['parent_permlink'])}"
             parent_posts = self.postTrx.get_post(parent_authorperm)
@@ -109,13 +109,14 @@ class CommentProcessorForEngine(object):
             else:
                 title = posts[0]["title"]
 
-            old_post_metadata = self.postMetadataStorage.get({"authorperm": authorperm})
+            old_post_metadata = self.postMetadataStorage.get(authorperm)
+
             if "body" in ops:
                 try:
                     dmp = diff_match_patch()
                     patch = dmp.patch_fromText(ops["body"])
-                    if patch is not None and len(patch):
-                        new_body = dmp.patch_apply(patch, old_post_metadata["body"])
+                    if old_post_metadata and patch is not None and len(patch):
+                        new_body, _ = dmp.patch_apply(patch, old_post_metadata["body"])
                     else:
                         new_body = ops["body"]
                 except Exception as ex:
@@ -125,10 +126,10 @@ class CommentProcessorForEngine(object):
             if posts[0]["children"] is not None:
                 children = posts[0]["children"]
 
-            self.postMetadataStorage.upsert({"authorperm": authorperm, "body": new_body, "json_metadata": json.dumps(json_metadata), "parent_author": ops["parent_author"], "parent_permlink": ops["parent_permlink"], "title": title, "tags": tags})
+            self.postMetadataStorage.upsert({"authorperm": authorperm, "body": new_body, "json_metadata": json.dumps(json_metadata), "parent_authorperm": parent_authorperm, "title": title, "tags": tags})
             for post in posts:
                 token = post["token"]
-                posts_list.append({"authorperm": authorperm, "token": token, "title": title[:256], "desc": desc, "tags": tags[:256], "parent_author": ops["parent_author"], "parent_permlink": ops["parent_permlink"], "main_post": main_post})
+                posts_list.append({"authorperm": authorperm, "token": token, "title": title[:256], "desc": desc, "tags": tags[:256], "parent_author": ops["parent_author"], "parent_permlink": ops["parent_permlink"], "main_post": main_post, "children": children})
 
             if main_post:
                 self.accountsStorage.upsert({"name": post_author, "symbol": token, "last_root_post": timestamp})
@@ -144,15 +145,14 @@ class CommentProcessorForEngine(object):
                     posts_list.append({"authorperm": parent_post["authorperm"], "token": parent_post["token"],
                                        "children": children})
             if ops['parent_author'] and ops['parent_permlink']:
-                parent_metadata_authorperm = construct_authorperm(ops['parent_author'], ops['parent_permlink'])
-                parent_post_metadata = self.postMetadataStorage.get(parent_metadata_authorperm)
+                parent_post_metadata = self.postMetadataStorage.get(parent_authorperm)
                 if parent_post_metadata:
                     children = parent_post_metadata['children']
                     if children is not None:
                         children += 1
                     else:
                         children = 1
-                    self.postMetadataStorage.upsert({"authorperm": parent_metadata_authorperm, "children": children})
+                    self.postMetadataStorage.upsert({"authorperm": parent_authorperm, "children": children})
 
         if len(posts_list) > 0:
             self.postTrx.add_batch(posts_list)

@@ -79,7 +79,7 @@ if __name__ == "__main__":
 
     if last_engine_streamed_block == 0:
         start_block = current_block_num
-        confStorage.upsert_engine({"last_engine_streamed_block": start_block}, cid=2)
+        confStorage.upsert_engine({"last_engine_streamed_block": start_block})
     else:
         start_block = last_engine_streamed_block + 1
 

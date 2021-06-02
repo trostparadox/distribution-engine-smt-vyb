@@ -248,6 +248,11 @@ class PostsTrx(object):
 
         return self.db.query(("SELECT p.* FROM posts p INNER JOIN accounts acc ON p.author = acc.name AND p.token = acc.symbol WHERE p.muted = 'false' AND acc.muted = 'false' AND token = :token AND main_post = 'false' AND p.author NOT IN :accounts AND p.parent_author in :accounts AND p.created > :cutoff %s %s ORDER BY p.created desc LIMIT :limit" % (timestamp_clause, hive_select_clause)), token=token, accounts=tuple(accounts), last_timestamp=last_timestamp, limit=str(limit), cutoff=cutoff)
 
+    def get_thread_discussions(self, token, author, permlink):
+        authorperm = f"@{author}/{permlink}"
+        return self.db.query("WITH RECURSIVE post_tree AS ( SELECT authorperm, body, json_metadata, 0 depth FROM post_metadata WHERE authorperm = :authorperm UNION SELECT pm.authorperm, pm.body, pm.json_metadata, pt.depth + 1 FROM post_metadata pm INNER JOIN post_tree pt ON pm.parent_authorperm = pt.authorperm WHERE pt.depth <= 4) SELECT pt.depth, p.*, pt.body, pt.json_metadata FROM post_tree pt join posts p ON p.authorperm = pt.authorperm and p.token = :token", authorperm=authorperm, token=token)
+
+
     def get_feed_discussions(self, token, accounts, last_timestamp=None, limit=100, include_reblogs=True, hive_select=None):
         cutoff = (last_timestamp if last_timestamp else datetime.utcnow()) + relativedelta(months=-1)
         timestamp_clause = ""

@@ -326,7 +326,7 @@ def format_feed_data(db, token, posts, start_author, start_permlink, limit, fetc
 
             for vote in vote_list:
                 vote["timestamp"] = formatTimeString(vote["timestamp"])
-                vote["authorperm"] = ""
+                vote.pop("authorperm", None)
                 if vote["timestamp"] > post["cashout_time"]:
                     continue
         else:
@@ -345,6 +345,7 @@ def format_feed_data(db, token, posts, start_author, start_permlink, limit, fetc
 
         post["author"] = author
         post["authorperm"] = construct_authorperm(author, post["permlink"])
+        post["hive"] = True
 
         if start_permlink is not None and start_found:
             output_posts.append(post)
@@ -355,10 +356,37 @@ def format_feed_data(db, token, posts, start_author, start_permlink, limit, fetc
     return jsonify(output_posts)
 
 
+@app.route('/get_thread', methods=['GET'])
+def get_thread():
+    """
+    Fetch posts and comments
+    """
+    token = request.args.get('token', None)
+    author = request.args.get('author', None)
+    permlink = request.args.get('permlink', None)
+
+    if token is None:
+        return jsonify([])
+    if author is None:
+        return jsonify([])
+    if permlink is None:
+        return jsonify([])
+    
+    db = dataset.connect(databaseConnector, ensure_schema=False)
+    try:
+        postTrx = PostsTrx(db)
+        posts = postTrx.get_thread_discussions(token, author, permlink)
+        return format_feed_data(db, token, posts, None, None, 1000, True)
+    finally:
+        db.executable.close()
+        db = None
+
+
+
 @app.route('/get_feed', methods=['GET'])
 def get_feed():
     """
-    Add a new rule
+    Fetch user's feed
     """
     token = request.args.get('token', None)
     account = request.args.get('tag', None)

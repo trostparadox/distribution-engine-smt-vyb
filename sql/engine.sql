@@ -43,13 +43,15 @@ CREATE TABLE "public"."configuration" (
 
 CREATE INDEX "ix_configuration_87ea5dfc8b8e384d" ON "public"."configuration" USING btree ("id");
 
+INSERT INTO "configuration" ("id", "last_streamed_block", "last_streamed_timestamp", "last_engine_streamed_block", "last_engine_streamed_timestamp", "name") VALUES
+(2,	0,	NULL,	0,	NULL,	'ENGINE_SIDECHAIN'),
+(1,	0,	NULL,	0,	NULL,	'HIVED');
 
 DROP TABLE IF EXISTS "follows";
 CREATE TABLE "public"."follows" (
     "follower" character varying(20) NOT NULL,
     "following" character varying(20) NOT NULL,
     "state" smallint NOT NULL,
-    "created_at" timestamp DEFAULT '1970-01-01 00:00:00' NOT NULL,
     CONSTRAINT "follows_follower_following" PRIMARY KEY ("follower", "following")
 ) WITH (oids = false);
 
@@ -61,12 +63,13 @@ CREATE TABLE "public"."post_metadata" (
     "authorperm" character varying(300) NOT NULL,
     "body" text NOT NULL,
     "json_metadata" text NOT NULL,
-    "parent_author" character varying(20) NOT NULL,
-    "parent_permlink" character varying(300) NOT NULL,
     "tags" text,
     "children" integer,
+    "parent_authorperm" character varying(300),
     CONSTRAINT "post_metadata_authorperm" PRIMARY KEY ("authorperm")
 ) WITH (oids = false);
+
+CREATE INDEX "post_metadata_parent_authorperm" ON "public"."post_metadata" USING btree ("parent_authorperm");
 
 
 DROP TABLE IF EXISTS "posts";
@@ -152,4 +155,4 @@ CREATE TABLE "public"."votes" (
 CREATE INDEX "votes_authorperm_token_timestamp" ON "public"."votes" USING btree ("authorperm", "token", "timestamp");
 
 
--- 2021-04-28 10:27:30.80189+00
+-- 2021-05-27 14:08:39.878291+00
