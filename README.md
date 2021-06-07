@@ -15,7 +15,7 @@ sudo apt-get install python3.8-dev
 ```
 sudo apt install nginx ufw php7.2-fpm php7.2-pgsql
 ```
-adminer
+adminer (for UI access to manage postgres DB)
 ```
 sudo mkdir /usr/share/adminer
 sudo wget "https://www.adminer.org/latest.php" -O /usr/share/adminer/latest.php
@@ -75,81 +75,33 @@ createdb engine
 psql -d engine -a -f sql/engine.sql
 ```
 
-## Config file for accessing the database and the beem wallet
+## Config file for accessing the database and engine rpc
 A `config.json` file must be stored in the main directory and in the homepage directory where the `app.py` file is.
 ```
 {
+        "engine_api": "https://api2.hive-engine.com/rpc/",
+        "engine_id": "ssc-mainnet-hive",
+        "apiCacheDir": "/tmp/scotcache"
         "databaseConnector": "postgresql://postgres:password@localhost/engine",
-        "wallet_password": "abc",
-        "flask_secret_key": "abc"
 }
 ```
 
+Also create /tmp/scotcache
+
+```
+mkdir /tmp/scotcache
+```
+
 ## Running the scripts
+
+When running for the first time, set the `last_streamed_block` of the HIVED configuration entry
+and the `last_engine_streamed_block` of the `ENGINE_SIDECHAIN` configuration entry
+to the hive block and hive engine sidechain block, respectively, where your SMT was introduced.
+
+Run the following with your process manager of choice (e.g. pm2)
 ```
-chmod a+x run-engine.sh
+./run-engine-sc.sh
 ./run-engine.sh
-export FLASK_APP=server/app; export PYTHONPATH=/path/to/distribution-engine/ ; flask run --port 5001
-```
-or copy the systemd service file to /etc/systemd/system and start it by
-```
-systemctl start engine
-```
-
-and 
-
-```
-systemctl start engine-issue
-```
-
-and 
-
-
-```
-systemctl start engineserver
-```
-
-do the same with run-hive-engine.sh,  hive-engine.
-
-### Backup Node Details
-
-If spinning this up on a different server, here's how to run a backup in parallel.
-
-(Only creates indices necessary for the node. This also wipes the DB)
-```
-psql postgresql://postgres:pa9lq30m@localhost/engine -a -f sql/engine_noindex.sql 
-```
-
-This does a data-only dump
-```
-pg_dump --data-only -h 95.216.22.185 -p 5432 engine -U postgres --password | psql postgresql://postgres:password@localhost/engine
-```
-
-After this, can start the server with `run-engine.sh`
-
-### Continuous Archival
-
-Set up as per https://www.postgresql.org/docs/current/continuous-archiving.html
-
-Specific to main SCOT server:
-
-```
-sudo mkdir /media/scotdata/pg_backups/backup_20210308
-
-sudo chown postgres /media/scotdata/pg_backups/backup_20210308
-
-sudo chgrp postgres /media/scotdata/pg_backups/backup_20210308
-
-sudo su postgres
-
-pg_basebackup -D /media/scotdata/pg_backups/backup_20210308 -Ft -z -P
-
-exit  # exit the postgres user
-
-scp -P 24659 -r /media/scotdata/pg_backups/backup_20210308 henodemin@135.181.78.238:pg_backups/.
-```
-
-Probably can consider deleting the WAL on occasion, as it takes a lot of space. Or just do
-logical backups.
-
+(dev) ./run-api-server.sh
+(prod) ./run-prod-api-server.sh
 ```
