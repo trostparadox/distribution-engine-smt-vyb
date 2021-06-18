@@ -70,7 +70,8 @@ class CommentsContractProcessor(CustomJsonProcessor):
                             curation_share = Decimal(event["data"]["quantity"])
                             paid_out_posts[authorperm]["curator_payout_value"] += curation_share
                             paid_out_posts[authorperm]["total_payout_value"] += curation_share
-                            self.accountHistoryTrx.add({"account": event["data"]["account"], "token": token, "timestamp": timestamp, "quantity": curation_share, "type": "curation_reward", "authorperm": authorperm, "trx": op["transactionId"]})
+                            if curation_share > 0:
+                                self.accountHistoryTrx.add({"account": event["data"]["account"], "token": token, "timestamp": timestamp, "quantity": curation_share, "type": "curation_reward", "authorperm": authorperm, "trx": op["transactionId"]})
                         except Exception as e:
                             print(e)
 
@@ -83,7 +84,8 @@ class CommentsContractProcessor(CustomJsonProcessor):
                             beneficiary_share = Decimal(event["data"]["quantity"])
                             paid_out_posts[authorperm]["curator_payout_value"] += beneficiary_share
                             paid_out_posts[authorperm]["total_payout_value"] += beneficiary_share
-                            self.accountHistoryTrx.add({"account": event["data"]["account"], "token": token, "timestamp": timestamp, "quantity": beneficiary_share, "type": "curation_reward", "authorperm": authorperm, "trx": op["transactionId"]})
+                            if beneficiary_share > 0:
+                                self.accountHistoryTrx.add({"account": event["data"]["account"], "token": token, "timestamp": timestamp, "quantity": beneficiary_share, "type": "curation_reward", "authorperm": authorperm, "trx": op["transactionId"]})
                         except Exception as e:
                             print(e)
 
@@ -98,7 +100,8 @@ class CommentsContractProcessor(CustomJsonProcessor):
                         paid_out_posts[authorperm]["vote_rshares"]  = 0 
                         paid_out_posts[authorperm]["score_hot"]  = 0 
                         paid_out_posts[authorperm]["score_trend"]  = 0 
-                        self.accountHistoryTrx.add({"account": event["data"]["account"], "token": token, "timestamp": timestamp, "quantity": author_share, "type": "author_reward", "authorperm": authorperm, "trx": op["transactionId"]})
+                        if author_share > 0:
+                            self.accountHistoryTrx.add({"account": event["data"]["account"], "token": token, "timestamp": timestamp, "quantity": author_share, "type": "author_reward", "authorperm": authorperm, "trx": op["transactionId"]})
                     elif event["event"] == "createRewardPool" or event["event"] == "updateRewardPool":
                         # const config = { "postRewardCurve": "power", "postRewardCurveParameter": "1.05", "curationRewardCurve": "power", "curationRewardCurveParameter": "0.5", "curationRewardPercentage": 50, "cashoutWindowDays": 7, "rewardPerBlock": "0.375", "voteRegenerationDays": 5, "downvoteRegenerationDays": 5, "stakedRewardPercentage": 50, "votePowerConsumption": 200, "downvotePowerConsumption": 2000, "tags": ["palnet"]};
                         # this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__SMT_11', 'minnowsupport', 'comments', 'updateRewardPool', `{ "symbol": "PAL", "config": ${JSON.stringify(config)}, "isSignedWithActiveKey": true }`));

@@ -119,7 +119,7 @@ if __name__ == "__main__":
     block_processing_time = time.time()
 
     # Processors
-    comment_processor_for_engine = CommentProcessorForEngine(db, token_metadata)
+    comment_processor_for_engine = CommentProcessorForEngine(db, hived, token_metadata)
     reblog_processor = ReblogProcessor(db, token_metadata)
     follow_processor = FollowProcessor(db, token_metadata)
 

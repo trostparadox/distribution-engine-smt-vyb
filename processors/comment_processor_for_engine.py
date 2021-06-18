@@ -26,8 +26,9 @@ class CommentProcessorForEngine(object):
     """ Processor for handling comment operations for engine comments.
     """
 
-    def __init__(self, db, token_metadata):
+    def __init__(self, db, hived, token_metadata):
         self.db = db
+        self.hived = hived
         self.postTrx = PostsTrx(db)
         self.postMetadataStorage = PostMetadataStorage(db)
         self.accountsStorage = AccountsDB(db)
@@ -117,6 +118,25 @@ class CommentProcessorForEngine(object):
                     patch = dmp.patch_fromText(ops["body"])
                     if old_post_metadata and patch is not None and len(patch):
                         new_body, _ = dmp.patch_apply(patch, old_post_metadata["body"])
+                    elif patch is not None and len(patch) and not old_post_metadata:
+                        print(f"Edit on post not in db, fetching {authorperm}")
+                        c = None
+                        cnt = 0
+                        while c is None and cnt < 5:
+                            cnt += 1
+                            try:
+                                if cnt <= 2:
+                                    c = Comment(authorperm, api="bridge", steem_instance=self.hived)
+                                else:
+                                    c = Comment(authorperm, api="condenser", steem_instance=self.hived)
+                            except Exception as e:
+                                print(f"Attempt {cnt}: Could not fetch comment")
+                                traceback.print_exc()
+                                c = None
+                        if c is not None:
+                            new_body = c["body"]
+                        else:
+                            new_body = ops["body"]
                     else:
                         new_body = ops["body"]
                 except Exception as ex:
