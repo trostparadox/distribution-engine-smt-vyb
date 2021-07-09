@@ -53,13 +53,19 @@ class CommentsContractProcessor(CustomJsonProcessor):
                     elif event["event"] == "newVote" or event["event"] == "updateVote":
                         token = event['data']['symbol']
                         authorperm = f"@{contractPayload['author']}/{contractPayload['permlink']}"
+                        voter = contractPayload["voter"]
                         rshares = Decimal(event["data"]["rshares"])
-                        self.voteTrx.add_batch([{"authorperm": authorperm, "voter": contractPayload["voter"], "token": token, "timestamp": timestamp, "rshares": rshares, "percent": contractPayload["weight"]}])
+                        old_rshares = Decimal(0)
+                        old_vote = self.voteTrx.get(authorperm, voter, token)
+                        if old_vote:
+                            old_rshares = old_vote["rshares"]
+                        self.voteTrx.add_batch([{"authorperm": authorperm, "voter": voter, "token": token, "timestamp": timestamp, "rshares": rshares, "percent": contractPayload["weight"]}])
                         voted_post = self.postTrx.get_token_post(token, authorperm)
                         if voted_post:
-                            sc_trend = _score(voted_post["vote_rshares"], timestamp.timestamp(), 480000)
-                            sc_hot = _score(voted_post["vote_rshares"], timestamp.timestamp(), 10000)
-                            self.postTrx.upsert({"authorperm": authorperm, "token": token, "vote_rshares": voted_post["vote_rshares"] + rshares, "score_trend": sc_trend, "score_hot": sc_hot})
+                            updated_vote_rshares = voted_post["vote_rshares"] + rshares - old_rshares
+                            sc_trend = _score(updated_vote_rshares, timestamp.timestamp(), 480000)
+                            sc_hot = _score(updated_vote_rshares, timestamp.timestamp(), 10000)
+                            self.postTrx.upsert({"authorperm": authorperm, "token": token, "vote_rshares": updated_vote_rshares, "score_trend": sc_trend, "score_hot": sc_hot})
                     elif event["event"] == "curationReward":
                         #{"contract":"comments","event":"curationReward","data":{"rewardPoolId":1,"authorperm":"@globalcurrencies/not-everything-that-is-dirty-is-coal-no-todo-lo-que-es-sucio-es-carbon ","symbol":"PAL","account":"javb","quantity":"0.000"}}
                         token = event['data']['symbol']
@@ -107,7 +113,7 @@ class CommentsContractProcessor(CustomJsonProcessor):
                         # this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__SMT_11', 'minnowsupport', 'comments', 'updateRewardPool', `{ "symbol": "PAL", "config": ${JSON.stringify(config)}, "isSignedWithActiveKey": true }`));
                         token = contractPayload['symbol']
                         reward_pool_id = event['data']['_id']
-                        self.tokenConfigStorage.upsert({ "token": token, "author_curve_exponent": contractPayload["config"]["postRewardCurveParameter"], "curation_curve_exponent": contractPayload["config"]["curationRewardCurveParameter"], "curation_reward_percentage": contractPayload["config"]["curationRewardPercentage"], "cashout_window_days": contractPayload["config"]["cashoutWindowDays"], "reward_pool_id": reward_pool_id})
+                        self.tokenConfigStorage.upsert({ "token": token, "author_curve_exponent": contractPayload["config"]["postRewardCurveParameter"], "curation_curve_exponent": contractPayload["config"]["curationRewardCurveParameter"], "curation_reward_percentage": contractPayload["config"]["curationRewardPercentage"], "cashout_window_days": contractPayload["config"]["cashoutWindowDays"], "reward_pool_id": reward_pool_id, "reward_per_interval": contractPayload["config"]["rewardPerInterval"], "reward_interval_seconds": contractPayload["config"]["rewardIntervalSeconds"], "vote_regeneration_days": contractPayload["config"]["voteRegenerationDays"], "downvoteRegenerationDays": contractPayload["config"]["downvoteRegenerationDays"], "staked_reward_percentage": contractPayload["config"]["stakedRewardPercentage"], "vote_power_consumption": contractPayload["config"]["votePowerConsumption"], "downvote_power_consumption": contractPayload["config"]["downvotePowerConsumption"], "tags": contractPayload["tags"]})
                         token_config[token] = self.tokenConfigStorage.get(token)
                         token_objects[token] = Token(token, api=self.api)
                     else:
