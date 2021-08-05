@@ -78,7 +78,7 @@ if __name__ == "__main__":
     max_batch_size = None
     threading = False
 
-    node_list = ["https://api.hivekings.com", "https://api.hive.blog", "https://api.openhive.network"]
+    node_list = ["https://api.deathwing.me", "https://api.hive.blog"]
     hived = Hive(node=node_list, num_retries=5, call_num_retries=3, timeout=15) 
     print("using node %s" % hived.rpc.url)
     b = Blockchain(mode="head", max_block_wait_repetition=27, steem_instance = hived)
