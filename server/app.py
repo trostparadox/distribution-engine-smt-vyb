@@ -58,7 +58,7 @@ databaseConnector = config_data["databaseConnector"]
 
 engine_api = Api(url=config_data["engine_api"])
 
-node_list = ["https://api.hivekings.com", "https://api.hive.blog", "https://api.openhive.network"]
+node_list = ["https://api.deathwing.me", "https://api.hive.blog"]
 hived = Hive(node=node_list, num_retries=5, call_num_retries=3, timeout=15, nobroadcast=True, bundle=True)
 
 @app.route('/')
