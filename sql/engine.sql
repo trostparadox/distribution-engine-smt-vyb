@@ -137,6 +137,7 @@ CREATE TABLE "public"."token_config" (
     "beneficiaries_account" character varying(20) DEFAULT 'null' NOT NULL,
     "promoted_post_account" character varying(20) DEFAULT 'null' NOT NULL,
     "reward_pool_id" integer DEFAULT '0' NOT NULL,
+    "token_account" character varying(20),
     CONSTRAINT "token_config_symbol" PRIMARY KEY ("token")
 ) WITH (oids = false);
 
