@@ -121,5 +121,12 @@ class CommentsContractProcessor(CustomJsonProcessor):
                         print(event)
                         raise "Error"
             for paid_out_post in paid_out_posts.values():
-                self.postTrx.update({"token": paid_out_post["token"], "authorperm": paid_out_post["authorperm"], "last_payout": paid_out_post["last_payout"], "total_payout_value": paid_out_post["total_payout_value"], "curator_payout_value": paid_out_post["curator_payout_value"]})
+                old_paid_out_post = self.postTrx.get_token_post(paid_out_post["token"], paid_out_post["authorperm"])
+                if not old_paid_out_post:
+                    self.postTrx.update({"token": paid_out_post["token"], "authorperm": paid_out_post["authorperm"], "last_payout": paid_out_post["last_payout"], "total_payout_value": paid_out_post["total_payout_value"], "curator_payout_value": paid_out_post["curator_payout_value"]})
+                else:
+                    old_paid_out_post["total_payout_value"] += paid_out_post["total_payout_value"]
+                    old_paid_out_post["curator_payout_value"] += paid_out_post["curator_payout_value"]
+                    print(f"! updating existing {old_paid_out_post}, {paid_out_post}")
+                    self.postTrx.update(old_paid_out_post)
 

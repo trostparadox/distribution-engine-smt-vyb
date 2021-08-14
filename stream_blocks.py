@@ -114,7 +114,6 @@ if __name__ == "__main__":
     token_metadata = initialize_token_metadata(token_config, engine_api)
 
     start_prep_time = time.time()
-    last_streamed_timestamp = None
     current_block_num = start_block - 1
     block_processing_time = time.time()
 

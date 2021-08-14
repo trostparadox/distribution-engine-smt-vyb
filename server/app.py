@@ -69,17 +69,19 @@ def main():
 def state():
     db = dataset.connect(databaseConnector, ensure_schema=False)
     confStorage = ConfigurationDB(db)
-    hived_conf = confStorage.get()
-    engine_conf = confStorage.get_engine()
-    time_delay_seconds = (datetime.utcnow() - hived_conf['last_streamed_timestamp']).total_seconds()
-    engine_time_delay_seconds = (datetime.utcnow() - engine_conf['last_engine_streamed_timestamp']).total_seconds()
-    data = {'last_streamed_block': hived_conf['last_streamed_block'],
-           'last_streamed_timestamp': formatTimeString(hived_conf['last_streamed_timestamp']),
-           'time_delay_seconds': time_delay_seconds,
-           'engine_time_delay_seconds': engine_time_delay_seconds}
-    db.executable.close()
-    db = None
-    return jsonify(data)
+    try:
+      hived_conf = confStorage.get()
+      engine_conf = confStorage.get_engine()
+      time_delay_seconds = (datetime.utcnow() - hived_conf['last_streamed_timestamp']).total_seconds()
+      engine_time_delay_seconds = (datetime.utcnow() - engine_conf['last_engine_streamed_timestamp']).total_seconds()
+      data = {'last_streamed_block': hived_conf['last_streamed_block'],
+             'last_streamed_timestamp': formatTimeString(hived_conf['last_streamed_timestamp']),
+             'time_delay_seconds': time_delay_seconds,
+             'engine_time_delay_seconds': engine_time_delay_seconds}
+      return jsonify(data)
+    finally:
+      db.executable.close()
+      db = None
 
 @cache.cached(timeout=60, query_string=True)
 @app.route('/info', methods=['GET'])
