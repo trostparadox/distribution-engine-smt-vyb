@@ -418,6 +418,8 @@ def get_feed():
         reblogsDb = ReblogsDB(db)
         followsDb = FollowsDB(db)
 
+        refresh_follows(db, account)
+
         last_timestamp = None
         if start_author is not None and start_permlink is not None:
             authorperm = construct_authorperm(start_author, start_permlink)
