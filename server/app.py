@@ -20,6 +20,7 @@ import codecs
 import dataset
 import re
 from engine.post_storage import PostsTrx
+from engine.post_metadata_storage import PostMetadataStorage
 from engine.config_storage import ConfigurationDB
 from engine.vote_storage import VotesTrx
 from engine.account_storage import AccountsDB
@@ -31,6 +32,7 @@ from engine.version import version as engineversion
 from engine.utils import setup_logging, int_sqrt, int_pow, _score
 from beem import Hive
 from beem.account import Account
+from beem.comment import Comment
 from beem.utils import formatTimeString, resolve_authorperm, construct_authorperm, addTzInfo
 from steemengine.api import Api
 from steemengine.tokenobject import Token
@@ -358,6 +360,38 @@ def format_feed_data(db, token, posts, start_author, start_permlink, limit, fetc
     return jsonify(output_posts)
 
 
+def fetch_and_save(c, token, postTrx, postMetadataStorage):
+    """
+    Fetch from hived and save post metadata.
+    """
+    authorperm = f"@{c.author}/{c.permlink}"
+    token_post = postTrx.get_token_post(token, authorperm)
+    if not token_post:
+        # see from comment processor and match behavior for orphaned data that is not in comments contract
+        return []
+    replies = c.get_replies()
+    results = []
+    json_metadata = c.json_metadata
+    print(json_metadata)
+    this_result = {
+        "authorperm": authorperm,
+        "body": c.body,
+        "json_metadata": json.dumps(json_metadata) if json_metadata else None,
+        "tags": ",".join(json_metadata["tags"]) if json_metadata and "tags" in json_metadata else None,
+        "parent_authorperm": f"@{c.parent_author}/{c.parent_permlink}" if c.parent_author else None,
+        "children": len(replies),
+    }
+    #print(f"postMetadataStorage.upsert({this_result})")
+    postMetadataStorage.upsert(this_result)
+    #print(postMetadataStorage.get(this_result["authorperm"]))
+    this_result.update(token_post)
+    results.append(this_result)
+    for reply in replies:
+        reply_result = fetch_and_save(reply, token, postTrx, postMetadataStorage)
+        results.extend(reply_result)
+    return results
+
+
 @app.route('/get_thread', methods=['GET'])
 def get_thread():
     """
@@ -366,6 +400,7 @@ def get_thread():
     token = request.args.get('token', None)
     author = request.args.get('author', None)
     permlink = request.args.get('permlink', None)
+    refresh = request.args.get('refresh', False)
 
     if token is None:
         return jsonify([])
@@ -377,7 +412,11 @@ def get_thread():
     db = dataset.connect(databaseConnector, ensure_schema=False)
     try:
         postTrx = PostsTrx(db)
-        posts = postTrx.get_thread_discussions(token, author, permlink)
+        postMetadataStorage = PostMetadataStorage(db)
+        posts = list(postTrx.get_thread_discussions(token, author, permlink))
+        if refresh or (len(posts) == 0):
+            c = Comment(f"{author}/{permlink}", blockchain_instance=hived)
+            posts = fetch_and_save(c, token, postTrx, postMetadataStorage)
         return format_feed_data(db, token, posts, None, None, 1000, True)
     finally:
         db.executable.close()
