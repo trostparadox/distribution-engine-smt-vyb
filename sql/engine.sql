@@ -138,6 +138,8 @@ CREATE TABLE "public"."token_config" (
     "promoted_post_account" character varying(20) DEFAULT 'null' NOT NULL,
     "reward_pool_id" integer DEFAULT '0' NOT NULL,
     "token_account" character varying(20),
+    "vote_regeneration_days" integer DEFAULT '5' NOT NULL,
+    "downvote_regeneration_days" integer DEFAULT '5' NOT NULL,
     CONSTRAINT "token_config_symbol" PRIMARY KEY ("token")
 ) WITH (oids = false);
 
