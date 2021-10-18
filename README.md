@@ -31,7 +31,7 @@ sudo ln -s /usr/share/adminer/adminer.php /var/www/html
 ```
 sudo apt-get install -y python3-setuptools
 sudo apt-get install -y python3.8-dev
-python3.8 -m pip install wheel beem dataset psycopg2-binary secp256k1prp steemengine base36
+python3.8 -m pip install wheel beem dataset psycopg2-binary steemengine base36 python-dateutil
 ```
 
 (API on machine is using root to run gunicorn)

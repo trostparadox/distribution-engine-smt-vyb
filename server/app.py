@@ -109,6 +109,7 @@ def token():
           tokenApi = Token(symbol=token, api=engine_api)
           if tokenApi:
               token_data_object['precision'] = tokenApi['precision']
+              token_data_object['issuer'] = tokenApi['issuer']
           return jsonify(token_data_object)
       else:
           token_config = tokenConfigStorage.get_all()
@@ -123,6 +124,7 @@ def token():
               tokenApi = Token(symbol=token, api=engine_api)
               if tokenApi:
                   token_data_object['precision'] = tokenApi['precision']
+                  token_data_object['issuer'] = tokenApi['issuer']
               token_data[token] = token_data_object
           return jsonify(token_data)
     finally:

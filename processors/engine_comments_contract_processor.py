@@ -125,8 +125,9 @@ class CommentsContractProcessor(CustomJsonProcessor):
                 if not old_paid_out_post:
                     self.postTrx.update({"token": paid_out_post["token"], "authorperm": paid_out_post["authorperm"], "last_payout": paid_out_post["last_payout"], "total_payout_value": paid_out_post["total_payout_value"], "curator_payout_value": paid_out_post["curator_payout_value"]})
                 else:
+                    if old_paid_out_post["total_payout_value"]:
+                        print(f"! updating existing {old_paid_out_post}, {paid_out_post}")
                     old_paid_out_post["total_payout_value"] += paid_out_post["total_payout_value"]
                     old_paid_out_post["curator_payout_value"] += paid_out_post["curator_payout_value"]
-                    print(f"! updating existing {old_paid_out_post}, {paid_out_post}")
                     self.postTrx.update(old_paid_out_post)
 
