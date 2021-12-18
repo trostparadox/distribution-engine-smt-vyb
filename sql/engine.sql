@@ -140,6 +140,8 @@ CREATE TABLE "public"."token_config" (
     "token_account" character varying(20),
     "vote_regeneration_days" integer DEFAULT '5' NOT NULL,
     "downvote_regeneration_days" integer DEFAULT '5' NOT NULL,
+    "disable_downvoting" boolean DEFAULT false,
+    "ignore_decline_payout" boolean DEFAULT false,
     CONSTRAINT "token_config_symbol" PRIMARY KEY ("token")
 ) WITH (oids = false);
 
