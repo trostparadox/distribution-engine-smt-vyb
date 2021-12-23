@@ -66,6 +66,8 @@ CREATE TABLE "public"."post_metadata" (
     "tags" text,
     "children" integer,
     "parent_authorperm" character varying(300),
+    "url" character varying(350),
+    "depth" smallint,
     CONSTRAINT "post_metadata_authorperm" PRIMARY KEY ("authorperm")
 ) WITH (oids = false);
 

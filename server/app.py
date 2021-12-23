@@ -374,7 +374,7 @@ def fetch_and_save(c, token, postTrx, postMetadataStorage):
     replies = c.get_replies()
     results = []
     json_metadata = c.json_metadata
-    print(json_metadata)
+    root_post = c.get_parent()
     this_result = {
         "authorperm": authorperm,
         "body": c.body,
@@ -382,6 +382,8 @@ def fetch_and_save(c, token, postTrx, postMetadataStorage):
         "tags": ",".join(json_metadata["tags"]) if json_metadata and "tags" in json_metadata else None,
         "parent_authorperm": f"@{c.parent_author}/{c.parent_permlink}" if c.parent_author else None,
         "children": len(replies),
+        "url": f"/{root_post.category}/{root_post.authorperm}",
+        "depth": c.depth,
     }
     #print(f"postMetadataStorage.upsert({this_result})")
     postMetadataStorage.upsert(this_result)
@@ -416,7 +418,7 @@ def get_thread():
         postTrx = PostsTrx(db)
         postMetadataStorage = PostMetadataStorage(db)
         posts = list(postTrx.get_thread_discussions(token, author, permlink))
-        if refresh or (len(posts) == 0):
+        if refresh or (len(posts) == 0) or ('url' not in posts[0] or posts[0]['url'] is None):
             c = Comment(f"{author}/{permlink}", blockchain_instance=hived)
             posts = fetch_and_save(c, token, postTrx, postMetadataStorage)
         return format_feed_data(db, token, posts, None, None, 1000, True)

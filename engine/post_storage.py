@@ -250,7 +250,7 @@ class PostsTrx(object):
 
     def get_thread_discussions(self, token, author, permlink):
         authorperm = f"@{author}/{permlink}"
-        return self.db.query("WITH RECURSIVE post_tree AS ( SELECT authorperm, body, json_metadata, 0 depth FROM post_metadata WHERE authorperm = :authorperm UNION SELECT pm.authorperm, pm.body, pm.json_metadata, pt.depth + 1 FROM post_metadata pm INNER JOIN post_tree pt ON pm.parent_authorperm = pt.authorperm WHERE pt.depth <= 8) SELECT pt.depth, p.*, pt.body, pt.json_metadata FROM post_tree pt join posts p ON p.authorperm = pt.authorperm and p.token = :token", authorperm=authorperm, token=token)
+        return self.db.query("WITH RECURSIVE post_tree AS ( SELECT authorperm, body, json_metadata, 0 __d FROM post_metadata WHERE authorperm = :authorperm UNION SELECT pm.authorperm, pm.body, pm.json_metadata, pt.__d + 1 FROM post_metadata pm INNER JOIN post_tree pt ON pm.parent_authorperm = pt.authorperm WHERE pt.__d <= 8) SELECT pt.__d, p.*, pt.body, pt.json_metadata FROM post_tree pt join posts p ON p.authorperm = pt.authorperm and p.token = :token", authorperm=authorperm, token=token)
 
 
     def get_feed_discussions(self, token, accounts, last_timestamp=None, limit=100, include_reblogs=True, hive_select=None):

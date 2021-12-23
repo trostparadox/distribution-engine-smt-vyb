@@ -146,7 +146,6 @@ class CommentProcessorForEngine(object):
             if posts[0]["children"] is not None:
                 children = posts[0]["children"]
 
-            self.postMetadataStorage.upsert({"authorperm": authorperm, "body": new_body, "json_metadata": json.dumps(json_metadata), "parent_authorperm": parent_authorperm, "title": title, "tags": tags})
             for post in posts:
                 token = post["token"]
                 posts_list.append({"authorperm": authorperm, "token": token, "title": title[:256], "desc": desc, "tags": tags[:256], "parent_author": ops["parent_author"], "parent_permlink": ops["parent_permlink"], "main_post": main_post, "children": children})
@@ -164,6 +163,7 @@ class CommentProcessorForEngine(object):
                         children = 1
                     posts_list.append({"authorperm": parent_post["authorperm"], "token": parent_post["token"],
                                        "children": children})
+            post_metadata = {"authorperm": authorperm, "body": new_body, "json_metadata": json.dumps(json_metadata), "parent_authorperm": parent_authorperm, "title": title, "tags": tags}
             if ops['parent_author'] and ops['parent_permlink']:
                 parent_post_metadata = self.postMetadataStorage.get(parent_authorperm)
                 if parent_post_metadata:
@@ -173,6 +173,15 @@ class CommentProcessorForEngine(object):
                     else:
                         children = 1
                     self.postMetadataStorage.upsert({"authorperm": parent_authorperm, "children": children})
+                    if parent_post_metadata["depth"] is not None:
+                        post_metadata["depth"] = parent_post_metadata["depth"] + 1
+                    if parent_post_metadata["url"] is not None:
+                        post_metadata["url"] = parent_post_metadata["url"]
+            else:
+                post_metadata["depth"] = 0
+                post_metadata["url"] = f"/{ops['parent_permlink']}/{authorperm}"
+
+            self.postMetadataStorage.upsert(post_metadata)
 
         if len(posts_list) > 0:
             self.postTrx.add_batch(posts_list)
