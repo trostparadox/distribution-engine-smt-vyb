@@ -88,7 +88,7 @@ class CommentsContractProcessor(CustomJsonProcessor):
                             paid_out_posts[authorperm] = { "token": token, "authorperm": authorperm, "last_payout": timestamp, "total_payout_value": 0, "curator_payout_value": 0 }
                         try:
                             beneficiary_share = Decimal(event["data"]["quantity"])
-                            paid_out_posts[authorperm]["curator_payout_value"] += beneficiary_share
+                            paid_out_posts[authorperm]["beneficiaries_payout_value"] += beneficiary_share
                             paid_out_posts[authorperm]["total_payout_value"] += beneficiary_share
                             if beneficiary_share > 0:
                                 self.accountHistoryTrx.add({"account": event["data"]["account"], "token": token, "timestamp": timestamp, "quantity": beneficiary_share, "type": "curation_reward", "authorperm": authorperm, "trx": op["transactionId"]})
