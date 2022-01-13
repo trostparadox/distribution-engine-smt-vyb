@@ -33,6 +33,7 @@ from engine.version import version as engineversion
 from engine.utils import setup_logging, initialize_config, initialize_token_metadata
 from processors.comment_processor_for_engine import CommentProcessorForEngine
 from processors.custom_json_follow_processor import FollowProcessor
+from processors.custom_json_set_tribe_settings import SetTribeSettingsProcessor
 from processors.custom_json_reblog_processor import ReblogProcessor
 from processors.custom_json_processor import extract_json_data
 from steemengine.tokenobject import Token
@@ -121,6 +122,7 @@ if __name__ == "__main__":
     comment_processor_for_engine = CommentProcessorForEngine(db, hived, token_metadata)
     reblog_processor = ReblogProcessor(db, token_metadata)
     follow_processor = FollowProcessor(db, token_metadata)
+    set_tribe_settings_processor = SetTribeSettingsProcessor(db, token_metadata)
 
     for ops in b.stream(start=start_block, stop=stop_block, opNames=["comment", "custom_json", "delete_comment"], max_batch_size=max_batch_size, threading=threading, thread_num=8):
         if ops["block_num"] - current_block_num > 1:
@@ -178,6 +180,8 @@ if __name__ == "__main__":
             elif json_data and ops['id'] == "follow":
                 follow_processor.process(ops, json_data)
                 print("follow op took %.2f s" % (time.time() - custom_json_start_time))
+            elif json_data and ops['id'] == "scot_set_tribe_settings":
+                set_tribe_settings_processor.process(ops, json_data)
         elif ops["type"] == "delete_comment":
             try:
                 authorperm = construct_authorperm(ops["author"], ops["permlink"])
