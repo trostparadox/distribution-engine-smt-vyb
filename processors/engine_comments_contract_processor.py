@@ -36,10 +36,28 @@ class CommentsContractProcessor(CustomJsonProcessor):
         """
         token_config = self.token_metadata["config"]
         token_objects = self.token_metadata["objects"]
+        token_config_by_id = self.token_metadata["config_by_id"]
 
-#{'refHiveBlockNumber': 52775960, 'transactionId': 'bfde3ff17dafabe17e58f790fe716d9b062a4367', 'sender': 'null', 'contract': 'comments', 'action': 'comment', 'payload': '{"author":"ebingo","permlink":"nigerian-cybercrime-who-is-the-nigerian-prince-1-3","rewardPools":[1]}', 'executedCodeHash': '0a2ff958d88fa0594dfdd1afa9dd63057a94ffc240658161609352b91f9e969f', 'hash': '6dce35097920fcc67cdfaa32cd0e89f8bf637ad2eecba59d7888577800d83c27', 'databaseHash': 'd6ad7bd101e4c6376ea9a0bbd78f7a643ce6009c4154f4d878c2a42c822808ef', 'logs': '{"events":[{"contract":"comments","event":"newComment","data":{"rewardPoolId":1,"symbol":"PAL"}}]}'}
-#{'refHiveBlockNumber': 52775960, 'transactionId': '15e4bf5a2c3c8f2f9c1c04f3aa905de1ad3dc38f', 'sender': 'null', 'contract': 'comments', 'action': 'vote', 'payload': '{"voter":" toni.curation","author":"cryptopoints","weight":400,"permlink":"wleo-is-not-right-on-track-wleo-price-and-market-analysis-deeply"}', 'executedCodeHash': '0a2ff958d88fa0594dfdd1 afa9dd63057a94ffc240658161609352b91f9e969f', 'hash': 'c6221ceda70b6da352d4c71f8b41202651d48c7d948a86d3b7944b902364dd85', 'databaseHash': '514d29b2cba0a4831edfa075c138a6f20c3d39d253d9a4ce75deed076102f11d', 'logs': '{"events":[{"contract":"comments","event":"newVote","data":{"rewardPoolId":1,"symbol":"PAL","rshares":"0.0000000000"}}]}'}
         logs = json.loads(op["logs"])
+        if op["action"] == "setMute" and "errors" not in logs:
+            account = contractPayload["account"]
+            reward_pool_id = contractPayload["rewardPoolId"]
+            reward_pool = token_config_by_id[reward_pool_id]
+            account_obj = self.accountsStorage.get(account, reward_pool["token"])
+            if not account_obj:
+                account_obj = {"name": account, "symbol": reward_pool["token"]}
+            account_obj["muted"] = contractPayload["mute"]
+            self.accountsStorage.upsert(account_obj)
+        elif op["action"] == "setPostMute" and "errors" not in logs:
+            authorperm = contractPayload["authorperm"]
+            reward_pool_id = contractPayload["rewardPoolId"]
+            reward_pool = token_config_by_id[reward_pool_id]
+            post = self.postTrx.get_token_post(reward_pool["token"], authorperm)
+            if post:
+                post["muted"] = contractPayload["mute"]
+                self.postTrx.upsert(post)
+
+
         if "events" in logs:
             events = logs["events"]
             paid_out_posts = {}
@@ -67,7 +85,6 @@ class CommentsContractProcessor(CustomJsonProcessor):
                             sc_hot = _score(updated_vote_rshares, timestamp.timestamp(), 10000)
                             self.postTrx.upsert({"authorperm": authorperm, "token": token, "vote_rshares": updated_vote_rshares, "score_trend": sc_trend, "score_hot": sc_hot})
                     elif event["event"] == "curationReward":
-                        #{"contract":"comments","event":"curationReward","data":{"rewardPoolId":1,"authorperm":"@globalcurrencies/not-everything-that-is-dirty-is-coal-no-todo-lo-que-es-sucio-es-carbon ","symbol":"PAL","account":"javb","quantity":"0.000"}}
                         token = event['data']['symbol']
                         authorperm = event["data"]["authorperm"]
                         if authorperm not in paid_out_posts:
@@ -79,13 +96,13 @@ class CommentsContractProcessor(CustomJsonProcessor):
                             if curation_share > 0:
                                 self.accountHistoryTrx.add({"account": event["data"]["account"], "token": token, "timestamp": timestamp, "quantity": curation_share, "type": "curation_reward", "authorperm": authorperm, "trx": op["transactionId"]})
                         except Exception as e:
-                            print(e)
+                            traceback.print_exc()
 
                     elif event["event"] == "beneficiaryReward":
                         token = event['data']['symbol']
                         authorperm = event["data"]["authorperm"]
                         if authorperm not in paid_out_posts:
-                            paid_out_posts[authorperm] = { "token": token, "authorperm": authorperm, "last_payout": timestamp, "total_payout_value": 0, "curator_payout_value": 0 }
+                            paid_out_posts[authorperm] = { "token": token, "authorperm": authorperm, "last_payout": timestamp, "total_payout_value": 0, "curator_payout_value": 0, "beneficiaries_payout_value": 0 }
                         try:
                             beneficiary_share = Decimal(event["data"]["quantity"])
                             paid_out_posts[authorperm]["beneficiaries_payout_value"] += beneficiary_share
@@ -93,10 +110,9 @@ class CommentsContractProcessor(CustomJsonProcessor):
                             if beneficiary_share > 0:
                                 self.accountHistoryTrx.add({"account": event["data"]["account"], "token": token, "timestamp": timestamp, "quantity": beneficiary_share, "type": "curation_reward", "authorperm": authorperm, "trx": op["transactionId"]})
                         except Exception as e:
-                            print(e)
+                            traceback.print_exc()
 
                     elif event["event"] == "authorReward":
-                        #{"contract" :"comments","event":"authorReward","data":{"rewardPoolId":1,"authorperm":"@globalcurrencies/not-everything-that-is-dirty-is-coal-no-todo-lo-que-es-sucio-es-carbon","symbol":"PAL","account":"globalcurrencies","quantity":"2.571"}}
                         token = event['data']['symbol']
                         authorperm = event["data"]["authorperm"]
                         if authorperm not in paid_out_posts:
@@ -109,12 +125,11 @@ class CommentsContractProcessor(CustomJsonProcessor):
                         if author_share > 0:
                             self.accountHistoryTrx.add({"account": event["data"]["account"], "token": token, "timestamp": timestamp, "quantity": author_share, "type": "author_reward", "authorperm": authorperm, "trx": op["transactionId"]})
                     elif event["event"] == "createRewardPool" or event["event"] == "updateRewardPool":
-                        # const config = { "postRewardCurve": "power", "postRewardCurveParameter": "1.05", "curationRewardCurve": "power", "curationRewardCurveParameter": "0.5", "curationRewardPercentage": 50, "cashoutWindowDays": 7, "rewardPerBlock": "0.375", "voteRegenerationDays": 5, "downvoteRegenerationDays": 5, "stakedRewardPercentage": 50, "votePowerConsumption": 200, "downvotePowerConsumption": 2000, "tags": ["palnet"]};
-                        # this.transactions.push(new Transaction(this.blockNumber, 'FAKETX__SMT_11', 'minnowsupport', 'comments', 'updateRewardPool', `{ "symbol": "PAL", "config": ${JSON.stringify(config)}, "isSignedWithActiveKey": true }`));
                         token = contractPayload['symbol']
-                        reward_pool_id = event['data']['_id']
+                        reward_pool_id = event['data']['_id'] if "_id" in event["data"] else token_config[token]["reward_pool_id"]
                         self.tokenConfigStorage.upsert({ "token": token, "author_curve_exponent": contractPayload["config"]["postRewardCurveParameter"], "curation_curve_exponent": contractPayload["config"]["curationRewardCurveParameter"], "curation_reward_percentage": contractPayload["config"]["curationRewardPercentage"], "cashout_window_days": contractPayload["config"]["cashoutWindowDays"], "reward_pool_id": reward_pool_id, "reward_per_interval": contractPayload["config"]["rewardPerInterval"], "reward_interval_seconds": contractPayload["config"]["rewardIntervalSeconds"], "vote_regeneration_days": contractPayload["config"]["voteRegenerationDays"], "downvote_regeneration_days": contractPayload["config"]["downvoteRegenerationDays"], "staked_reward_percentage": contractPayload["config"]["stakedRewardPercentage"], "vote_power_consumption": contractPayload["config"]["votePowerConsumption"], "downvote_power_consumption": contractPayload["config"]["downvotePowerConsumption"], "tags": ",".join(contractPayload["config"]["tags"]), "issuer": op["sender"], "disable_downvoting": "disableDownvote" in contractPayload["config"] and contractPayload["config"]["disableDownvote"], "ignore_decline_payout": "ignoreDeclinePayout" in contractPayload["config"] and contractPayload["config"]["ignoreDeclinePayout"]})
                         token_config[token] = self.tokenConfigStorage.get(token)
+                        token_config_by_id[reward_pool_id] = token_config[token]
                         token_objects[token] = Token(token, api=self.api)
                     else:
                         print(op)

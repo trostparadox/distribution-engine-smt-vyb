@@ -138,6 +138,7 @@ if __name__ == "__main__":
                                 promote_post_processor.process(op, contractPayload)
                 except Exception as e:
                     traceback.print_exc()
+                    raise "Error"
 
         confStorage.upsert_engine({"last_engine_streamed_block": current_block_num, "last_engine_streamed_timestamp": last_engine_streamed_timestamp})
         db.commit()

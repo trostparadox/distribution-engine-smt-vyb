@@ -76,7 +76,9 @@ def initialize_config(config_file):
 
 def initialize_token_metadata(token_config, engine_api):
     token_objects = {}
+    token_config_by_id = {}
     for token in token_config:
         token_objects[token] = Token(token, api=engine_api)
-    return { "config": token_config, "objects": token_objects }
+        token_config_by_id[token_config[token]["reward_pool_id"]] = token_config[token]
+    return { "config": token_config, "objects": token_objects, "config_by_id": token_config_by_id }
 
