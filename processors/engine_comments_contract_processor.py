@@ -66,8 +66,11 @@ class CommentsContractProcessor(CustomJsonProcessor):
                     if event["event"] == "newComment":
                         token = event['data']['symbol']
                         cashout_window_days = token_config[token]["cashout_window_days"]
-                        authorperm = f"@{contractPayload['author']}/{contractPayload['permlink']}"
-                        self.postTrx.upsert({"authorperm": authorperm, "author": contractPayload["author"], "created": timestamp, "token": token, "cashout_time": timestamp + timedelta(cashout_window_days), "main_post": False})
+                        author = contractPayload["author"]
+                        authorperm = f"@{author}/{contractPayload['permlink']}"
+                        account_obj = self.accountsStorage.get(author, token)
+                        muted = bool(account_obj and account_obj["muted"])
+                        self.postTrx.upsert({"authorperm": authorperm, "author": author, "created": timestamp, "token": token, "cashout_time": timestamp + timedelta(cashout_window_days), "main_post": False, "muted": muted})
                     elif event["event"] == "newVote" or event["event"] == "updateVote":
                         token = event['data']['symbol']
                         authorperm = f"@{contractPayload['author']}/{contractPayload['permlink']}"
@@ -88,7 +91,7 @@ class CommentsContractProcessor(CustomJsonProcessor):
                         token = event['data']['symbol']
                         authorperm = event["data"]["authorperm"]
                         if authorperm not in paid_out_posts:
-                            paid_out_posts[authorperm] = { "token": token, "authorperm": authorperm, "last_payout": timestamp, "total_payout_value": 0, "curator_payout_value": 0 }
+                            paid_out_posts[authorperm] = { "token": token, "authorperm": authorperm, "last_payout": timestamp, "total_payout_value": 0, "curator_payout_value": 0, "beneficiaries_payout_value": 0 }
                         try:
                             curation_share = Decimal(event["data"]["quantity"])
                             paid_out_posts[authorperm]["curator_payout_value"] += curation_share
@@ -116,7 +119,7 @@ class CommentsContractProcessor(CustomJsonProcessor):
                         token = event['data']['symbol']
                         authorperm = event["data"]["authorperm"]
                         if authorperm not in paid_out_posts:
-                            paid_out_posts[authorperm] = { "token": token, "authorperm": authorperm, "last_payout": timestamp, "total_payout_value": 0, "curator_payout_value": 0 }
+                            paid_out_posts[authorperm] = { "token": token, "authorperm": authorperm, "last_payout": timestamp, "total_payout_value": 0, "curator_payout_value": 0, "beneficiaries_payout_value": 0 }
                         author_share = Decimal(event["data"]["quantity"])
                         paid_out_posts[authorperm]["total_payout_value"] += author_share
                         paid_out_posts[authorperm]["vote_rshares"]  = 0 
