@@ -135,9 +135,7 @@ class CommentsContractProcessor(CustomJsonProcessor):
                         token_config_by_id[reward_pool_id] = token_config[token]
                         token_objects[token] = Token(token, api=self.api)
                     else:
-                        print(op)
                         print(event)
-                        raise "Error"
             for paid_out_post in paid_out_posts.values():
                 old_paid_out_post = self.postTrx.get_token_post(paid_out_post["token"], paid_out_post["authorperm"])
                 if not old_paid_out_post:
