@@ -70,8 +70,8 @@ class CommentProcessorForEngine(object):
             print("Metadata error for %s" % authorperm)
             json_metadata = {}
 
-        if isinstance(json_metadata, int):
-            print("bad int json_metadata")
+        if not isinstance(json_metadata, dict):
+            print("bad nondict json_metadata")
             json_metadata = {}
 
         tags_set = set()
@@ -80,7 +80,7 @@ class CommentProcessorForEngine(object):
             # hived repurposes this for category, and it may overlap with tags
             tags_set.add(ops["parent_permlink"])
             tags = ops["parent_permlink"]
-        if "tags" in json_metadata:
+        if "tags" in json_metadata and isinstance(json_metadata["tags"], list):
             for t in json_metadata["tags"]:
                 if not isinstance(t, str):
                     continue
