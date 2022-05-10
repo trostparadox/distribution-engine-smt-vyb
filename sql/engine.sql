@@ -34,9 +34,9 @@ CREATE SEQUENCE configuration_id_seq INCREMENT 1 MINVALUE 1 MAXVALUE 2147483647 
 
 CREATE TABLE "public"."configuration" (
     "id" integer DEFAULT nextval('configuration_id_seq') NOT NULL,
-    "last_streamed_block" integer DEFAULT '0' NOT NULL,
+    "last_streamed_block" integer DEFAULT '58985963' NOT NULL,
     "last_streamed_timestamp" timestamp,
-    "last_engine_streamed_block" integer DEFAULT '0',
+    "last_engine_streamed_block" integer DEFAULT '12000000',
     "last_engine_streamed_timestamp" timestamp,
     "name" character varying(20)
 ) WITH (oids = false);
